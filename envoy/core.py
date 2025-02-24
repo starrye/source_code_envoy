@@ -29,6 +29,7 @@ def _terminate_process(process):
         ctypes.windll.kernel32.TerminateProcess(handle, -1)
         ctypes.windll.kernel32.CloseHandle(handle)
     else:
+        #  SIGTERM 给进程机会清理资源并正常关闭
         os.kill(process.pid, signal.SIGTERM)
 
 
@@ -36,12 +37,15 @@ def _kill_process(process):
     if sys.platform == 'win32':
         _terminate_process(process)
     else:
+        # SIGKILL 直接杀死进程
         os.kill(process.pid, signal.SIGKILL)
 
 
 def _is_alive(thread):
+    # python3.x 方法
     if hasattr(thread, "is_alive"):
         return thread.is_alive()
+    # python2.x 方法
     else:
         return thread.isAlive()
 
@@ -65,17 +69,18 @@ class Command(object):
 
             try:
                 self.process = subprocess.Popen(self.cmd,
-                    universal_newlines=True,
-                    shell=False,
-                    env=environ,
-                    stdin=subprocess.PIPE,
+                    universal_newlines=True,    # 自动处理换行符
+                    shell=False,                # 不通过shell解释器，但是必须是["ls", "-l"]这种列表的形式
+                    env=environ,                # 设置子进程的环境变量
+                    stdin=subprocess.PIPE,      # 允许父进程读取子进程的输出
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    bufsize=0,
-                    cwd=cwd,
+                    bufsize=0,                  # 缓冲区大小
+                    cwd=cwd,                    # 设置子进程的工作目录
                 )
-
+                # sys.version_info(major=3, minor=12, micro=3, releaselevel='final', serial=0) 第一个主版本号 第二个次版本号 第三个修订版本号 。。。。
                 if sys.version_info[0] >= 3:
+                    # 与子进程通讯 发送输入数据
                     self.out, self.err = self.process.communicate(
                         input = bytes(self.data, "UTF-8") if self.data else None
                     )
@@ -91,6 +96,7 @@ class Command(object):
         thread.join(timeout)
         if self.exc:
             raise self.exc
+        # 两段停止线程操作
         if _is_alive(thread) :
             _terminate_process(self.process)
             thread.join(kill_timeout)
@@ -177,6 +183,7 @@ def expand_args(command):
 
     # Prepare arguments.
     if isinstance(command, (str, unicode)):
+        # 字符串处理 相比较splite 好处是引号处理、转义字符传力、空白字符处理
         splitter = shlex.shlex(command.encode('utf-8'))
         splitter.whitespace = '|'
         splitter.whitespace_split = True
